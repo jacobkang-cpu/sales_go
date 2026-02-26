@@ -104,6 +104,13 @@ HTML_PAGE = r"""
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .share-status {
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 0.88rem;
+      min-height: 1.2em;
     }
 
     .btn {
@@ -546,6 +553,29 @@ HTML_PAGE = r"""
       renderChart(data);
     }
 
+    async function copyShareLink() {
+      const status = document.getElementById("shareStatus");
+      const url = window.location.href;
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(url);
+        } else {
+          const temp = document.createElement("input");
+          temp.value = url;
+          document.body.appendChild(temp);
+          temp.select();
+          document.execCommand("copy");
+          temp.remove();
+        }
+        status.textContent = "??? ???????.";
+      } catch (err) {
+        status.textContent = "?? ??: ??? ???? ??????.";
+      }
+      setTimeout(() => {
+        status.textContent = "";
+      }, 2500);
+    }
+
     function bindForms() {
       const demoForm = document.getElementById("demoForm");
       const demoStatus = document.getElementById("demoStatus");
@@ -583,6 +613,7 @@ HTML_PAGE = r"""
     bindForms();
     renderPosts(initialPosts);
     renderChart(initialChart);
+    document.getElementById("copyShareLink").addEventListener("click", copyShareLink);
     setInterval(refreshChart, 30000);
   </script>
 </body>
