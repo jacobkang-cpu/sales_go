@@ -1,0 +1,20 @@
+﻿services:
+  - type: web
+    name: drpalette-beta
+    env: python
+    branch: beta
+    buildCommand: "python --version"
+    startCommand: "python blog.py"
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+
+  - type: web
+    name: drpalette-prod
+    env: python
+    branch: main
+    buildCommand: "python --version"
+    startCommand: "python blog.py"
+    envVars:
+      - key: HOST
+        value: 0.0.0.0

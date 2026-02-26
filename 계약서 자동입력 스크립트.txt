@@ -1,0 +1,196 @@
+/**
+ * [Smart Mode v3.9.2] 
+ * 1. E열, M열에 'o' 자동 표시 로직 추가
+ * 2. W열 연락처 하이픈(-) 자동 포맷팅 추가 (00-000-0000 형식)
+ * 3. 요양기관번호(X열) 및 기존 추출 로직 유지
+ */
+
+const GEMINI_API_KEY = "AIzaSyAm8dgl3trTOEln3lEUv9HlVR1-ZxEetqg";
+
+function extractContractDataToSheet() {
+  console.log("🚀 [Smart Mode v3.9.2] 분석 시작");
+
+  const folderId = '0AOicXi4H4lf6Uk9PVA'; 
+  const spreadsheetId = '1g4z815ZK_pvErgWtMufjTH6QGqyFM7B9VTxdQ5WGJiE'; 
+  const sheetName = '현황시트';
+  
+  const folder = DriveApp.getFolderById(folderId);
+  const files = folder.getFiles(); 
+  const ss = SpreadsheetApp.openById(spreadsheetId);
+  const sheet = ss.getSheetByName(sheetName);
+
+  if (!sheet) { console.log("❌ 오류: 시트 없음"); return; }
+
+  // 1. 기준점 찾기
+  const colA_All = sheet.getRange("A:A").getValues(); 
+  let limitRow = -1;
+  for (let i = 0; i < colA_All.length; i++) {
+    if (colA_All[i][0] == 1000) { limitRow = i + 1; break; }
+  }
+  if (limitRow === -1) { console.log("❌ 오류: No.1000 없음"); return; }
+
+  // 2. 빈 행 찾기
+  let targetRow = -1;
+  const startSearchRow = 393; 
+  const checkValues = sheet.getRange(startSearchRow, 4, limitRow - startSearchRow, 16).getDisplayValues(); 
+
+  for (let i = 0; i < checkValues.length; i++) {
+    if (checkValues[i][0].trim() === "" && checkValues[i][15].trim() === "") {
+      targetRow = startSearchRow + i;
+      break;
+    }
+  }
+  if (targetRow === -1) { targetRow = limitRow; }
+
+  let processedCount = 0;
+
+  while (files.hasNext()) {
+    const file = files.next();
+    const fileName = file.getName();
+    if (fileName.includes("[완료]")) continue;
+
+    console.log(`🔎 파일 발견: ${fileName} / 분석 중...`);
+    Utilities.sleep(3000); 
+
+    try {
+      const blob = file.getBlob();
+      const base64Data = Utilities.base64Encode(blob.getBytes());
+      const aiData = callGeminiVisionAPI(base64Data, blob.getContentType());
+
+      if (aiData) {
+        // [데이터 정제]
+        let bizNo = formatBizNo(aiData.bizNo || "");
+        const clinicName = aiData.clinicName || "";
+        let ownerName = (aiData.ownerName || "").replace(/개원예정|원장님|원장|대표|의사|Dr\.|인\s*또는\s*서명/g, "").trim();
+        const addressInfo = correctKoreanAddress(aiData.address || ""); 
+        const contractDate = aiData.contractDate || "";
+        const email = (aiData.email || "").trim();
+        
+        // 연락처 및 휴대폰 포맷팅 (W열 및 AD열용)
+        let telNo = formatTel(aiData.tel || "");
+        let mobileNo = formatMobile(aiData.mobile || "");
+        
+        // 요양기관번호 정제
+        let clinicNo = (!aiData.clinicNo || aiData.clinicNo.length < 5) ? "발급전" : aiData.clinicNo;
+
+        // 부가서비스 혜택 추출
+        let specialTerms = aiData.specialTerms || "";
+        let promoDetails = [];
+        if (aiData.promoCid && String(aiData.promoCid) !== "null") promoDetails.push(`CID ${aiData.promoCid}`);
+        if (aiData.promoNaver && String(aiData.promoNaver) !== "null") promoDetails.push(`네이버 예약연동 ${aiData.promoNaver}`);
+        if (aiData.promoSurvey && String(aiData.promoSurvey) !== "null") promoDetails.push(`만족도조사 ${aiData.promoSurvey}`);
+        if (aiData.promoZeroEighty && String(aiData.promoZeroEighty) !== "null") promoDetails.push(`080 수신거부 ${aiData.promoZeroEighty}`);
+
+        let combinedTerms = promoDetails.length > 0 ? `${promoDetails.join(", ")} + ${specialTerms}` : specialTerms;
+        let naverFree = (aiData.promoNaver && String(aiData.promoNaver).includes("무료")) ? "무료" : "";
+
+        // --- 데이터 시트 기록 ---
+        sheet.insertRowBefore(targetRow);
+        
+        let newNo = 1;
+        if (targetRow > 1) {
+          const prevValue = sheet.getRange(targetRow - 1, 1).getValue();
+          if (!isNaN(prevValue) && prevValue !== "") { newNo = Number(prevValue) + 1; }
+        }
+        
+        sheet.getRange(targetRow, 1).setValue(newNo);         // A열
+        sheet.getRange(targetRow, 4).setValue(bizNo);         // D열
+        
+        // --- [추가: 1, 2] E열(5) 및 M열(13)에 'o' 표시 ---
+        sheet.getRange(targetRow, 5).setValue("o");           // E열
+        sheet.getRange(targetRow, 13).setValue("o");          // M열
+        
+        sheet.getRange(targetRow, 8).setValue(contractDate);  // H열
+        sheet.getRange(targetRow, 17).setValue(naverFree);    
+        sheet.getRange(targetRow, 18).setValue(combinedTerms); 
+        sheet.getRange(targetRow, 19).setValue(clinicName);   
+        
+        // --- [추가: 3] W열(23) 연락처 포맷팅 적용 ---
+        sheet.getRange(targetRow, 23).setValue(telNo);        // W열
+        
+        sheet.getRange(targetRow, 24).setValue(clinicNo);     // X열
+        sheet.getRange(targetRow, 25).setValue(addressInfo.fullAddress); 
+        sheet.getRange(targetRow, 26).setValue(addressInfo.sido);        
+        sheet.getRange(targetRow, 27).setValue(addressInfo.sigungu);     
+        
+        sheet.getRange(targetRow, 29).setValue(ownerName);    
+        sheet.getRange(targetRow, 30).setValue(mobileNo);     // AD열
+        sheet.getRange(targetRow, 31).setValue(email);        
+
+        sheet.getRange(targetRow, 38).setValue(naverFree);    
+        sheet.getRange(targetRow, 40).setValue("한국결제시스템 예정"); 
+
+        file.setName("[완료] " + fileName);
+        processedCount++;
+        targetRow++; 
+        Utilities.sleep(2000); 
+      }
+    } catch (e) { console.log(`🚨 에러 발생 (${fileName}): ` + e.toString()); }
+  }
+  console.log(`🎉 완료: ${processedCount}건 처리됨`);
+}
+
+/**
+ * 일반 전화번호 포맷팅 (02-000-0000 등)
+ */
+function formatTel(no) {
+  if (!no) return "";
+  const clean = no.replace(/\D/g, "");
+  
+  // 서울(02) 번호 처리
+  if (clean.startsWith("02")) {
+    if (clean.length === 9) return clean.replace(/(\d{2})(\d{3})(\d{4})/, "$1-$2-$3");
+    if (clean.length === 10) return clean.replace(/(\d{2})(\d{4})(\d{4})/, "$1-$2-$3");
+  }
+  
+  // 일반 지역번호 및 인터넷 전화
+  if (clean.length === 10) return clean.replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3");
+  if (clean.length === 11) return clean.replace(/(\d{3})(\d{4})(\d{4})/, "$1-$2-$3");
+  
+  return no; // 형식이 맞지 않으면 원본 반환
+}
+
+function formatMobile(no) {
+  if (!no) return "";
+  const clean = no.replace(/\D/g, "");
+  if (clean.length === 11) return clean.replace(/(\d{3})(\d{4})(\d{4})/, "$1-$2-$3");
+  if (clean.length === 10) return clean.replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3");
+  return no;
+}
+
+// [callGeminiVisionAPI, correctKoreanAddress, formatBizNo는 기존과 동일하게 유지]
+function callGeminiVisionAPI(base64Data, mimeType) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+  const promptText = `Analyze this contract image. The layout may vary between different versions. 
+    Find and extract the following fields. Return ONLY raw JSON.
+    Fields: bizNo, clinicNo, clinicName, ownerName, address, tel, mobile, email, specialTerms, contractDate, promoCid, promoNaver, promoSurvey, promoZeroEighty.
+    * Requirements: Extract EXACT TEXT for promo fields. If clinicNo is present, extract all digits. Output must be a valid JSON string.`;
+
+  const payload = { contents: [{ parts: [{ text: promptText }, { inline_data: { mime_type: mimeType, data: base64Data } }] }] };
+  const options = { method: 'post', contentType: 'application/json', payload: JSON.stringify(payload), muteHttpExceptions: true };
+
+  try {
+    const response = UrlFetchApp.fetch(url, options);
+    const resText = response.getContentText();
+    const json = JSON.parse(resText);
+    if (json.candidates && json.candidates.length > 0 && json.candidates[0].content) {
+      let aiText = json.candidates[0].content.parts[0].text;
+      const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) return JSON.parse(jsonMatch[0]);
+    }
+    return null;
+  } catch (e) { return null; }
+}
+
+function correctKoreanAddress(rawAddress) {
+  if (!rawAddress) return { sido: "", sigungu: "", fullAddress: "" };
+  let cleanAddr = rawAddress.trim();
+  let parts = cleanAddr.split(/\s+/);
+  let sido = parts[0] || "";
+  let sigungu = parts.length > 1 ? parts[1] : "";
+  const sidoMap = {"서울특별시": "서울", "경기도": "경기", "강원도": "강원", "충청북도": "충북", "충청남도": "충남", "전라북도": "전북", "전라남도": "전남", "경상북도": "경북", "경상남도": "경남", "제주도": "제주", "인천광역시": "인천", "부산광역시": "부산", "대전광역시": "대전", "대구광역시": "대구", "울산광역시": "울산", "광주광역시": "광주"};
+  sido = sidoMap[sido] || (sido.length > 2 ? sido.substring(0, 2) : sido);
+  return { sido: sido, sigungu: sigungu, fullAddress: cleanAddr };
+}
+
+function formatBizNo(no) { if (!no) return ""; const clean = no.replace(/\D/g, ""); return (clean.length === 10) ? clean.replace(/(\d{3})(\d{2})(\d{5})/, "$1-$2-$3") : no; }

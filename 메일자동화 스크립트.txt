@@ -1,0 +1,193 @@
+/**
+ * 닥터팔레트 통합 마케팅 & 영업 시스템 (AI 템플릿 선택 및 통계 관리형)
+ */
+function onOpen() {
+  const ui = SpreadsheetApp.getUi();
+  ui.createMenu('🚀 닥터팔레트 전송기')
+    .addItem('0. 영업용 대시보드 및 AI 템플릿 생성', 'setupDrPaletteSalesDashboard')
+    .addSeparator()
+    .addItem('1. 그룹 1 발송 (부재, 연락완료)', 'SEND_G1')
+    .addItem('2. 그룹 2 발송 (시연, 테스트계정)', 'SEND_G2')
+    .addItem('3. 그룹 3 발송 (이탈, 단순문의 등)', 'SEND_G3')
+    .addSeparator()
+    .addItem('4. 테스트 메일 발송 (확인용)', 'SEND_TEST_EMAIL')
+    .addItem('5. 발송 통계 리프레시', 'updateStatistics')
+    .addToUi();
+}
+
+/**
+ * [AI Bot] 대시보드 초기화 및 실시간 소식 반영 템플릿 생성
+ */
+function setupDrPaletteSalesDashboard() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheets = ["발송용", "메일템플릿", "발송로그", "통계"];
+  sheets.forEach(name => {
+    if (!ss.getSheetByName(name)) ss.insertSheet(name);
+  });
+
+  const sendSheet = ss.getSheetByName("발송용");
+  if (sendSheet.getLastRow() < 1) {
+    sendSheet.getRange(1, 1, 1, 7).setValues([["병원명", "이메일", "현재상태", "최초접촉일", "담당자", "특이사항", "발송결과"]]).setBackground("#E1F5FE").setFontWeight("bold");
+  }
+
+  const statSheet = ss.getSheetByName("통계");
+  statSheet.clear();
+  statSheet.getRange(1, 1, 1, 4).setValues([["총 발송 건수", "성공 건수", "에러 건수", "예상 클릭율(추적예정)"]]).setBackground("#D1FFD1").setFontWeight("bold");
+  statSheet.getRange(2, 1, 1, 4).setValues([[0, 0, 0, "0%"]]);
+
+  generateAITemplates();
+  
+  ss.getSheetByName("발송용").activate();
+  SpreadsheetApp.getUi().alert("AI Bot이 최신 소식을 반영한 템플릿 생성 및 시스템 구성을 완료했습니다.");
+}
+
+/**
+ * [AI 생성 로직] 실시간 뉴스 반영 및 출처 표기 없는 전문 본문 조합
+ */
+function generateAITemplates() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const templateSheet = ss.getSheetByName("메일템플릿");
+
+  let latestNews = "";
+  try {
+    const response = UrlFetchApp.fetch("https://dr.pltt.cloud/plttnews");
+    const content = response.getContentText();
+    const newsItems = [];
+    if (content.includes("Google")) newsItems.push("✅ [신규] 국내 EMR 최초, 구글 비즈니스 예약 실시간 연동");
+    if (content.includes("메디톡")) newsItems.push("✅ [업데이트] 모든 SNS 채널을 하나로 관리하는 '메디톡 플러스' 출시");
+    if (content.includes("여신티켓")) newsItems.push("✅ [프로모션] 여신티켓 연동 기념 광고비 지원 혜택");
+    latestNews = newsItems.length > 0 ? "\n📢 닥터팔레트 최신 업데이트 소식:\n" + newsItems.slice(0, 2).join("\n") + "\n" : "";
+  } catch (e) { latestNews = ""; }
+
+  const sections = [
+    {
+      title: "1️⃣ 장소 제약 없는 '자유로운 진료 환경' 💻",
+      content: "● 국내 유일 macOS 지원: 맥북, 아이맥에서도 완벽하게 작동합니다.\n● 설치 없이 로그인만으로: 웹 브라우저 접속만으로 진료 준비가 끝납니다.\n● 완벽한 모바일 연동: 병원 밖에서도 실시간 차트 조회가 가능합니다."
+    },
+    {
+      title: "2️⃣ 병원 매출을 높이는 '스마트 커뮤니케이션' 📈",
+      content: "● MediTalk+ (통합 메신저): 최대 8개 채널 문의를 하나의 창에서 관리하세요.\n● AI 실시간 번역: 외국인 환자와의 소통 장벽을 제거했습니다.\n● 무전기 없는 조용한 병원: 환자 정보 팝업으로 품격 있는 응대가 가능합니다."
+    },
+    {
+      title: "3️⃣ 데이터로 증명하는 '경영 인사이트' 📊",
+      content: "● 매출 분석 대시보드: 일별/월별 매출 추이를 한눈에 파악하세요.\n● 검증된 성과: 매출 32% 증가, 운영 비용 17% 감소 효과를 직접 확인하세요."
+    }
+  ];
+
+  let templates = [];
+  for(let i = 0; i < 3; i++) {
+    let shuffledSections = sections.sort(() => 0.5 - Math.random());
+    let bodyText = `원장님 안녕하세요,\n\n🚀 닥터팔레트가 제안하는 병원의 미래\n${latestNews}\n`;
+    shuffledSections.forEach(sec => bodyText += `${sec.title}\n${sec.content}\n\n`);
+    bodyText += `🎁 지금 바로 '맞춤 시연'을 신청해보세요!\n\n● 문의: 02-1234-5678 | www.dr-palette.com\n\n닥터팔레트 영업팀 드림`;
+    templates.push([`[제안] 병원 성장을 위한 닥터팔레트 도입 안내`, bodyText]);
+  }
+
+  templateSheet.clear();
+  templateSheet.getRange(1,1,1,2).setValues([["메일 제목", "메일 본문"]]).setBackground("#FFF9C4").setFontWeight("bold");
+  templateSheet.getRange(2,1,templates.length,2).setValues(templates);
+}
+
+/**
+ * 그룹별 발송 실행 함수
+ */
+function SEND_G1() { processGroup('G1', ["부재", "연락완료"]); }
+function SEND_G2() { processGroup('G2', ["시연진행", "테스트계정 전달"], true); }
+function SEND_G3() { processGroup('G3', ["이탈", "이탈(미팅X)", "장기부재", "단순문의", "체리피커"]); }
+
+/**
+ * 통합 발송 로직 (미리보기 및 템플릿 선택 포함)
+ */
+function processGroup(targetName, conditions, checkDate = false) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("발송용");
+  const logSheet = ss.getSheetByName("발송로그");
+  const ui = SpreadsheetApp.getUi();
+
+  // 1. 템플릿 선택
+  const templatePrompt = ui.prompt('📄 템플릿 선택', '사용할 메일템플릿의 행 번호를 입력해주세요. (보통 2, 3, 4행)', ui.ButtonSet.OK_CANCEL);
+  if (templatePrompt.getSelectedButton() !== ui.Button.OK) return;
+  const targetRow = parseInt(templatePrompt.getResponseText());
+  const template = getMailTemplate(targetRow);
+  if (!template) return;
+
+  // 2. 대상 추출 및 미리보기 구성
+  const data = sheet.getDataRange().getValues();
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  let targetList = [];
+  let previewList = [];
+  
+  for (let i = 1; i < data.length; i++) {
+    const [name, email, status, date, , , sendStatus] = data[i];
+    if (sendStatus === "발송완료" || !email) continue;
+    let isTarget = (conditions.indexOf(status) !== -1);
+    if (isTarget && checkDate) {
+      const applyDate = new Date(date);
+      if (Math.floor((today - applyDate) / (1000 * 60 * 60 * 24)) < 30) isTarget = false;
+    }
+    if (isTarget) {
+      targetList.push({row: i + 1, name, email});
+      if (previewList.length < 5) previewList.push(name);
+    }
+  }
+
+  if (targetList.length === 0) {
+    ui.alert(targetName + " 대상이 없습니다.");
+    return;
+  }
+
+  // 3. 발송 전 최종 확인
+  const listMsg = previewList.join(", ") + (targetList.length > 5 ? "..." : "");
+  const response = ui.alert('📢 발송 전 리스트 확인', `그룹: ${targetName}\n템플릿 행: ${targetRow}\n총 대상: ${targetList.length}개 병원\n\n발송하시겠습니까?\n요약: ${listMsg}`, ui.ButtonSet.YES_NO);
+  if (response !== ui.Button.YES) return;
+
+  // 4. 메일 발송
+  let success = 0;
+  targetList.forEach(item => {
+    try {
+      MailApp.sendEmail({ to: item.email, subject: template.subject, body: template.body, name: "닥터팔레트 마케팅팀" });
+      sheet.getRange(item.row, 7).setValue("발송완료").setBackground("#d9eaad");
+      logSheet.appendRow([new Date(), targetName, item.name, item.email, template.subject, "성공"]);
+      success++;
+      Utilities.sleep(500);
+    } catch (e) {
+      sheet.getRange(item.row, 7).setValue("에러: " + e.message);
+      logSheet.appendRow([new Date(), targetName, item.name, item.email, template.subject, "실패: " + e.message]);
+    }
+  });
+  updateStatistics();
+  ui.alert(`${success}건 발송 완료 및 통계 업데이트!`);
+}
+
+function updateStatistics() {
+  const logSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("발송로그");
+  const statSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("통계");
+  if (!logSheet || !statSheet) return;
+  const logs = logSheet.getDataRange().getValues();
+  let success = 0, error = 0;
+  for (let i = 1; i < logs.length; i++) {
+    if (logs[i][5] === "성공") success++; else error++;
+  }
+  statSheet.getRange(2, 1, 1, 3).setValues([[logs.length - 1, success, error]]);
+}
+
+function getMailTemplate(rowNum) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("메일템플릿");
+  const lastRow = sheet.getLastRow();
+  const targetRow = (rowNum && rowNum <= lastRow && rowNum > 1) ? rowNum : lastRow;
+  return { subject: sheet.getRange(targetRow, 1).getValue(), body: sheet.getRange(targetRow, 2).getValue() };
+}
+
+function SEND_TEST_EMAIL() {
+  const ui = SpreadsheetApp.getUi();
+  const prompt = ui.prompt('📄 테스트 템플릿 선택', '행 번호를 입력하세요.', ui.ButtonSet.OK_CANCEL);
+  if (prompt.getSelectedButton() === ui.Button.OK) {
+    const template = getMailTemplate(parseInt(prompt.getResponseText()));
+    if (template) {
+      MailApp.sendEmail("jacob.kang@medibloc.org", "[테스트] " + template.subject, template.body);
+      ui.alert("테스트 메일이 발송되었습니다.");
+    }
+  }
+}

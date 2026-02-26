@@ -1,0 +1,123 @@
+/**
+ * [가망고객] 탭 전용: Gmail에서 도입문의 메일을 읽어와 
+ * 기존 데이터의 상단에 행을 삽입하여 기입하고, 그 위에 빈 행을 추가합니다.
+ */
+function syncGmailToGaMangSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("가망고객");
+  
+  // 💡 Gmail 필터 설정에서 지정한 라벨명을 확인하세요.
+  const label = GmailApp.getUserLabelByName("닥터팔레트_도입문의"); 
+  
+  if (!label) {
+    console.log("❌ 오류: '닥터팔레트_도입문의' 라벨을 찾을 수 없습니다.");
+    return;
+  }
+
+  const threads = label.getThreads();
+  if (threads.length === 0) return;
+
+  threads.forEach(thread => {
+    const messages = thread.getMessages();
+    const lastMsg = messages[messages.length - 1]; 
+    const body = lastMsg.getPlainBody();
+
+    // 1. 이메일 본문 파싱
+    const data = parseDoctorPaletteEmail(body);
+
+    // 2. 기입할 위치 찾기 (데이터가 있는 첫 번째 행 찾기)
+    const nValues = sheet.getRange("N:N").getValues();
+    let firstDataRow = 0;
+    
+    // 4행부터 검사하여 처음으로 데이터가 나타나는 행 번호를 찾음
+    for (let i = 3; i < nValues.length; i++) {
+      if (nValues[i][0].toString().trim() !== "") {
+        firstDataRow = i + 1;
+        break;
+      }
+    }
+
+    let targetRow;
+    if (firstDataRow === 0) {
+      // 기존 데이터가 하나도 없다면 4행 위치에 2행 삽입
+      targetRow = 4;
+      sheet.insertRowsBefore(targetRow, 2);
+      // 데이터는 5행에 기입 (4행은 빈 행)
+      targetRow = 5;
+    } else {
+      // 기존 데이터 바로 위에 2행을 삽입 (여백용 1행 + 데이터용 1행)
+      sheet.insertRowsBefore(firstDataRow, 2);
+      // 데이터는 삽입된 두 행 중 아래쪽(기존 데이터 바로 위)인 행에 기입
+      targetRow = firstDataRow + 1;
+    }
+
+    // 3. 특정 열에 데이터 기입
+    // N(14):병원명, P(16):성함, Q(17):연락처, R(18):이메일
+    if (data.clinic) sheet.getRange(targetRow, 14).setValue(data.clinic);
+    if (data.name)   sheet.getRange(targetRow, 16).setValue(data.name);
+    
+    // Q(17): 연락처 - 하이픈(-) 포맷팅 적용
+    if (data.phone) {
+      const formattedPhone = formatPhoneNumber(data.phone);
+      sheet.getRange(targetRow, 17).setValue(formattedPhone);
+    }
+    
+    if (data.email)  sheet.getRange(targetRow, 18).setValue(data.email);
+    
+    // 상태 및 진행 정보 기입
+    sheet.getRange(targetRow, 21).setValue("고객 ➖"); // U열: 상태
+    sheet.getRange(targetRow, 22).setValue("준비");      // V열: 업무상태
+    if (data.route)  sheet.getRange(targetRow, 23).setValue(data.route); // W열: 경로
+    
+    // X열(24): 신청일 기록 (포맷: yyyy. M. d)
+    const formattedDate = Utilities.formatDate(new Date(), "GMT+9", "yyyy. M. d");
+    sheet.getRange(targetRow, 24).setValue(formattedDate);
+
+    // 4. 중복 기록 방지를 위해 메일 라벨 제거
+    thread.removeLabel(label); 
+    console.log(`✅ [가망고객] ${data.clinic} 상단 삽입 완료 (데이터 행: ${targetRow}, 위 빈 행 추가됨)`);
+  });
+}
+
+/**
+ * 이메일 텍스트에서 데이터를 추출하는 헬퍼 함수
+ */
+function parseDoctorPaletteEmail(body) {
+  function extract(label) {
+    const regex = new RegExp(label + "[^\\n]*\\n([^\\n]*)", "i");
+    const match = body.match(regex);
+    return match ? match[1].trim() : "";
+  }
+
+  return {
+    name: extract("성함"),
+    clinic: extract("병원명"),
+    phone: extract("휴대폰 번호"),
+    email: extract("이메일 주소"),
+    route: extract("닥터팔레트를 알게된 경로")
+  };
+}
+
+/**
+ * 연락처를 010-0000-0000 형식으로 변환하는 함수
+ */
+function formatPhoneNumber(phoneNumber) {
+  if (!phoneNumber) return "";
+  
+  // 숫자만 남기기
+  const cleaned = ('' + phoneNumber).replace(/\D/g, '');
+  
+  // 11자리인 경우 (010-1234-5678)
+  const match11 = cleaned.match(/^(\d{3})(\d{4})(\d{4})$/);
+  if (match11) {
+    return match11[1] + '-' + match11[2] + '-' + match11[3];
+  }
+  
+  // 10자리인 경우 (010-123-4567)
+  const match10 = cleaned.match(/^(\d{3})(\d{3})(\d{4})$/);
+  if (match10) {
+    return match10[1] + '-' + match10[2] + '-' + match10[3];
+  }
+  
+  return phoneNumber; // 형식이 맞지 않으면 원본 반환
+}
