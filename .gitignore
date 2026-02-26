@@ -1,4 +1,4 @@
-﻿# Python cache
+# Python cache
 __pycache__/
 *.py[cod]
 
@@ -12,3 +12,6 @@ venv/
 Thumbs.db
 .vscode/
 .idea/
+
+# Firebase
+firebase-debug.log
