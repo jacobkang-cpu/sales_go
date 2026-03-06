@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import mimetypes
 import os
-import random
 import threading
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -13,6 +13,8 @@ HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8000"))
 
 LOCK = threading.Lock()
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CARD_PREFIX = "/card"
 
 DEMO_INQUIRIES: list[dict] = []
 COMMUNITY_POSTS: list[dict] = [
@@ -20,7 +22,7 @@ COMMUNITY_POSTS: list[dict] = [
         "id": 1,
         "title": "2월 주간 리드 전환율 리포트",
         "author": "운영팀",
-        "category": "차트업데이트",
+        "category": "분석",
         "content": "시연 문의 대비 계약 전환율이 전주 대비 3.2%p 상승했습니다.",
         "created_at": "2026-02-24 09:30",
     },
@@ -28,14 +30,11 @@ COMMUNITY_POSTS: list[dict] = [
         "id": 2,
         "title": "SNS 채널별 유입 비교",
         "author": "마케팅팀",
-        "category": "분석",
+        "category": "운영공지",
         "content": "네이버 블로그와 인스타그램 유입 비중이 가장 높았습니다.",
         "created_at": "2026-02-25 08:50",
     },
 ]
-
-# 최근 7개 구간의 샘플 지표 (예: 일자별 시연 문의 건수)
-CHART_SERIES = [14, 19, 17, 22, 24, 21, 26]
 
 HTML_PAGE = r"""
 <!doctype html>
@@ -52,14 +51,11 @@ HTML_PAGE = r"""
       --sub: #475569;
       --line: #d9e2f1;
       --accent: #0b6ee7;
-      --accent-2: #14b8a6;
       --danger: #dc2626;
       --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
@@ -87,16 +83,12 @@ HTML_PAGE = r"""
       animation: rise 450ms ease-out;
     }
 
-    .hero h1 {
-      margin: 0;
-      font-size: clamp(1.6rem, 2vw, 2.3rem);
-      letter-spacing: -0.02em;
-    }
+    .hero h1 { margin: 0; font-size: clamp(1.6rem, 2vw, 2.3rem); }
 
     .hero p {
       margin: 14px 0 0;
       color: rgba(255, 255, 255, 0.92);
-      max-width: 720px;
+      max-width: 760px;
     }
 
     .hero-actions {
@@ -124,15 +116,8 @@ HTML_PAGE = r"""
       display: inline-block;
     }
 
-    .btn:hover {
-      transform: translateY(-1px);
-      opacity: 0.95;
-    }
-
-    .btn-primary {
-      background: #fff;
-      color: #0f172a;
-    }
+    .btn:hover { transform: translateY(-1px); opacity: 0.95; }
+    .btn-primary { background: #fff; color: #0f172a; }
 
     .btn-ghost {
       background: rgba(255, 255, 255, 0.14);
@@ -157,11 +142,7 @@ HTML_PAGE = r"""
       animation: fadeIn 500ms ease both;
     }
 
-    .panel h2 {
-      margin: 0 0 10px;
-      font-size: 1.1rem;
-      letter-spacing: -0.01em;
-    }
+    .panel h2 { margin: 0 0 10px; font-size: 1.1rem; }
 
     .sub {
       color: var(--sub);
@@ -175,9 +156,7 @@ HTML_PAGE = r"""
       gap: 10px;
     }
 
-    .input,
-    .textarea,
-    .select {
+    .input, .textarea, .select {
       width: 100%;
       border: 1px solid var(--line);
       border-radius: 10px;
@@ -186,14 +165,8 @@ HTML_PAGE = r"""
       background: #fff;
     }
 
-    .textarea {
-      min-height: 92px;
-      resize: vertical;
-    }
-
-    .full {
-      grid-column: 1 / -1;
-    }
+    .textarea { min-height: 92px; resize: vertical; }
+    .full { grid-column: 1 / -1; }
 
     .status {
       margin-top: 8px;
@@ -201,10 +174,7 @@ HTML_PAGE = r"""
       min-height: 1.2em;
     }
 
-    .sns-grid {
-      display: grid;
-      gap: 10px;
-    }
+    .sns-grid { display: grid; gap: 10px; }
 
     .sns-card {
       border: 1px solid var(--line);
@@ -213,16 +183,8 @@ HTML_PAGE = r"""
       background: linear-gradient(180deg, #fff, #f8fbff);
     }
 
-    .sns-card strong {
-      display: block;
-      margin-bottom: 4px;
-    }
-
-    .sns-card a {
-      color: var(--accent);
-      text-decoration: none;
-      font-weight: 600;
-    }
+    .sns-card strong { display: block; margin-bottom: 4px; }
+    .sns-card a { color: var(--accent); text-decoration: none; font-weight: 600; }
 
     .chat-box {
       border: 1px solid var(--line);
@@ -244,33 +206,59 @@ HTML_PAGE = r"""
       animation: fadeIn 220ms ease;
     }
 
-    .bot {
-      align-self: flex-start;
-      background: #e8f1ff;
-      border: 1px solid #c6ddff;
-    }
+    .bot { align-self: flex-start; background: #e8f1ff; border: 1px solid #c6ddff; }
+    .user { align-self: flex-end; background: #ecfdf5; border: 1px solid #b7efd4; }
 
-    .user {
-      align-self: flex-end;
-      background: #ecfdf5;
-      border: 1px solid #b7efd4;
-    }
+    .chat-input { margin-top: 10px; display: flex; gap: 8px; }
+    .chat-input input { flex: 1; }
 
-    .chat-input {
-      margin-top: 10px;
+    .reddit-feed { display: grid; gap: 12px; }
+
+    .reddit-head {
       display: flex;
+      align-items: center;
+      justify-content: space-between;
       gap: 8px;
     }
 
-    .chat-input input {
-      flex: 1;
+    .reddit-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+
+    .chip {
+      font-size: 0.75rem;
+      background: #eef6ff;
+      color: #1d4ed8;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid #d7e7ff;
     }
 
-    .community-list {
-      display: grid;
-      gap: 10px;
-      margin-top: 10px;
+    .feed-grid { display: grid; gap: 10px; }
+
+    .feed-item {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      background: linear-gradient(180deg, #ffffff, #f8fbff);
     }
+
+    .feed-item strong { display: block; margin-bottom: 4px; font-size: 0.95rem; }
+    .feed-meta { color: var(--sub); font-size: 0.82rem; margin-top: 4px; }
+
+    .image-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .image-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      background: #fff;
+      min-height: 92px;
+    }
+
+    .community-list { display: grid; gap: 10px; margin-top: 10px; }
 
     .post {
       border: 1px solid var(--line);
@@ -279,10 +267,7 @@ HTML_PAGE = r"""
       background: #fff;
     }
 
-    .post h4 {
-      margin: 0;
-      font-size: 1rem;
-    }
+    .post h4 { margin: 0; font-size: 1rem; }
 
     .meta {
       margin: 4px 0 8px;
@@ -290,72 +275,20 @@ HTML_PAGE = r"""
       font-size: 0.85rem;
     }
 
-    .chart-wrap {
-      margin-top: 10px;
-      display: grid;
-      gap: 8px;
-    }
-
-    .bar-row {
-      display: grid;
-      grid-template-columns: 50px 1fr 36px;
-      align-items: center;
-      gap: 8px;
-      font-size: 0.86rem;
-    }
-
-    .bar-bg {
-      height: 10px;
-      border-radius: 999px;
-      background: #e5eefc;
-      overflow: hidden;
-    }
-
-    .bar {
-      height: 100%;
-      border-radius: 999px;
-      background: linear-gradient(90deg, var(--accent), var(--accent-2));
-      transition: width 380ms ease;
-    }
-
-    .tag {
-      display: inline-block;
-      font-size: 0.75rem;
-      background: #eef6ff;
-      color: #1d4ed8;
-      padding: 3px 8px;
-      border-radius: 999px;
-      margin-left: 6px;
-    }
-
     @keyframes rise {
-      from {
-        opacity: 0;
-        transform: translateY(8px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     @keyframes fadeIn {
-      from {
-        opacity: 0;
-      }
-      to {
-        opacity: 1;
-      }
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
 
     @media (max-width: 920px) {
-      .grid {
-        grid-template-columns: 1fr;
-      }
-
-      .form-grid {
-        grid-template-columns: 1fr;
-      }
+      .grid { grid-template-columns: 1fr; }
+      .form-grid { grid-template-columns: 1fr; }
+      .image-grid { grid-template-columns: 1fr 1fr; }
     }
   </style>
 </head>
@@ -365,11 +298,13 @@ HTML_PAGE = r"""
       <h1>닥터팔레트 시연 문의 & 운영 커뮤니티 허브</h1>
       <p>
         닥터팔레트 도입 검토 병원을 위한 시연 문의 접수, SNS 채널 연결,
-        FAQ 챗봇 응대, 차트 기반 커뮤니티 업데이트를 한 페이지에서 운영합니다.
+        FAQ 챗봇 응대, 레딧 스타일 커뮤니티 피드까지 한 페이지에서 운영합니다.
       </p>
       <div class="hero-actions">
         <a href="#demo" class="btn btn-primary">시연 문의 접수</a>
         <a href="#community" class="btn btn-ghost">커뮤니티 바로가기</a>
+        <button class="btn btn-ghost" id="copyShareLink" type="button">공유 링크 복사</button>
+        <span class="share-status" id="shareStatus"></span>
       </div>
     </section>
 
@@ -431,22 +366,34 @@ HTML_PAGE = r"""
       </section>
 
       <section class="panel" id="community">
-        <h2>차트 모니터링</h2>
-        <p class="sub">최근 7개 구간 시연 문의 추이 <span class="tag" id="updatedAt"></span></p>
-        <div class="chart-wrap" id="chartWrap"></div>
+        <h2>커뮤니티 피드</h2>
+        <p class="sub">레딧 게시판 스타일로 인기, 뉴스, 이미지 중심의 피드를 한 화면에서 확인합니다.</p>
+        <div class="reddit-feed">
+          <div class="reddit-head">
+            <strong>오늘의 핫 토픽</strong>
+            <div class="reddit-tags">
+              <span class="chip">인기</span>
+              <span class="chip">뉴스</span>
+              <span class="chip">이미지</span>
+            </div>
+          </div>
+          <div id="popularFeed" class="feed-grid"></div>
+          <div id="newsFeed" class="feed-grid"></div>
+          <div id="imageFeed" class="image-grid"></div>
+        </div>
       </section>
     </div>
 
     <section class="panel" style="margin-top: 16px;">
       <h2>커뮤니티 게시판</h2>
-      <p class="sub">차트 관련 공지/분석 내용을 팀이 주기적으로 업데이트하는 공간입니다.</p>
+      <p class="sub">팀이 직접 공지/분석 게시물을 올리는 운영용 게시판입니다.</p>
       <form id="postForm" class="form-grid">
         <input class="input" name="title" placeholder="제목" required />
         <input class="input" name="author" placeholder="작성자" required />
         <select class="select" name="category" required>
-          <option>차트업데이트</option>
-          <option>분석</option>
           <option>운영공지</option>
+          <option>분석</option>
+          <option>사례공유</option>
         </select>
         <input class="input" name="content" placeholder="내용 요약" required />
         <button class="btn btn-primary full" type="submit">게시물 등록</button>
@@ -458,14 +405,29 @@ HTML_PAGE = r"""
 
   <script>
     const initialPosts = __POSTS_JSON__;
-    const initialChart = __CHART_JSON__;
 
     const faqMap = [
       { keys: ["가격", "비용", "요금"], answer: "병원 규모별 요금제가 다릅니다. 시연 문의를 남기면 맞춤 견적을 안내해드립니다." },
-      { keys: ["기능", "차트", "분석"], answer: "접수/리드/전환 차트를 실시간으로 조회하고 팀별 성과를 비교할 수 있습니다." },
+      { keys: ["기능", "분석", "대시보드"], answer: "유입·상담·전환 단계를 한 번에 확인하고 팀별 성과를 비교할 수 있습니다." },
       { keys: ["기간", "도입", "설치"], answer: "평균 도입 기간은 1~2주이며, 데이터 연동 범위에 따라 조정됩니다." },
       { keys: ["문의", "상담", "데모"], answer: "상단 시연 문의 폼을 보내주시면 담당자가 영업일 기준 24시간 내 연락드립니다." }
     ];
+
+    const redditFeed = {
+      popular: [
+        { title: "개원 병원 CRM 자동화 사례", meta: "인기 · 업보트 182" },
+        { title: "진료과별 리드 전환 개선 체크리스트", meta: "인기 · 업보트 141" }
+      ],
+      news: [
+        { title: "의료 SaaS 도입 트렌드 2026 상반기", meta: "뉴스 · 2시간 전" },
+        { title: "병원 마케팅 개인정보 가이드 업데이트", meta: "뉴스 · 오늘" }
+      ],
+      images: [
+        { title: "주간 성과 대시보드", tag: "이미지" },
+        { title: "SNS 유입 흐름도", tag: "이미지" },
+        { title: "도입 프로세스 맵", tag: "이미지" }
+      ]
+    };
 
     function appendMessage(type, text) {
       const box = document.getElementById("chatBox");
@@ -501,6 +463,24 @@ HTML_PAGE = r"""
       });
     }
 
+    function renderRedditFeed() {
+      const popularEl = document.getElementById("popularFeed");
+      const newsEl = document.getElementById("newsFeed");
+      const imageEl = document.getElementById("imageFeed");
+
+      popularEl.innerHTML = redditFeed.popular
+        .map((item) => `<article class="feed-item"><strong>${item.title}</strong><div class="feed-meta">${item.meta}</div></article>`)
+        .join("");
+
+      newsEl.innerHTML = redditFeed.news
+        .map((item) => `<article class="feed-item"><strong>${item.title}</strong><div class="feed-meta">${item.meta}</div></article>`)
+        .join("");
+
+      imageEl.innerHTML = redditFeed.images
+        .map((item) => `<article class="image-card"><strong>${item.title}</strong><div class="feed-meta">${item.tag}</div></article>`)
+        .join("");
+    }
+
     async function postFormJson(url, formEl) {
       const formData = new FormData(formEl);
       const payload = Object.fromEntries(formData.entries());
@@ -527,32 +507,6 @@ HTML_PAGE = r"""
       });
     }
 
-    function renderChart(chart) {
-      const wrap = document.getElementById("chartWrap");
-      const updated = document.getElementById("updatedAt");
-      const maxValue = Math.max(...chart.values, 1);
-      wrap.innerHTML = "";
-      chart.labels.forEach((label, idx) => {
-        const value = chart.values[idx];
-        const row = document.createElement("div");
-        row.className = "bar-row";
-        const ratio = (value / maxValue) * 100;
-        row.innerHTML = `
-          <span>${label}</span>
-          <div class="bar-bg"><div class="bar" style="width:${ratio}%"></div></div>
-          <strong>${value}</strong>
-        `;
-        wrap.appendChild(row);
-      });
-      updated.textContent = `업데이트: ${chart.updated_at}`;
-    }
-
-    async function refreshChart() {
-      const res = await fetch("/api/chart");
-      const data = await res.json();
-      renderChart(data);
-    }
-
     async function copyShareLink() {
       const status = document.getElementById("shareStatus");
       const url = window.location.href;
@@ -567,9 +521,9 @@ HTML_PAGE = r"""
           document.execCommand("copy");
           temp.remove();
         }
-        status.textContent = "??? ???????.";
+        status.textContent = "링크가 복사되었습니다.";
       } catch (err) {
-        status.textContent = "?? ??: ??? ???? ??????.";
+        status.textContent = "복사 실패: 링크를 수동으로 복사해주세요.";
       }
       setTimeout(() => {
         status.textContent = "";
@@ -612,9 +566,8 @@ HTML_PAGE = r"""
     bindChatbot();
     bindForms();
     renderPosts(initialPosts);
-    renderChart(initialChart);
+    renderRedditFeed();
     document.getElementById("copyShareLink").addEventListener("click", copyShareLink);
-    setInterval(refreshChart, 30000);
   </script>
 </body>
 </html>
@@ -643,27 +596,6 @@ def parse_body(handler: BaseHTTPRequestHandler) -> dict:
     return {}
 
 
-def next_chart() -> dict:
-    with LOCK:
-        last = CHART_SERIES[-1]
-        drift = random.randint(-3, 4)
-        CHART_SERIES.append(max(3, last + drift))
-        if len(CHART_SERIES) > 7:
-            CHART_SERIES.pop(0)
-
-        labels = [f"D-{6 - i}" for i in range(7)]
-        return {
-            "labels": labels,
-            "values": CHART_SERIES[:],
-            "updated_at": now_text(),
-        }
-
-
-def initial_chart() -> dict:
-    labels = [f"D-{6 - i}" for i in range(7)]
-    return {"labels": labels, "values": CHART_SERIES[:], "updated_at": now_text()}
-
-
 class AppHandler(BaseHTTPRequestHandler):
     def _send_json(self, payload: dict, status: int = HTTPStatus.OK) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -681,23 +613,52 @@ class AppHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _serve_static_file(self, path: str) -> bool:
+        """명함 페이지용 정적 파일 서빙. path는 BASE_DIR 기준 상대경로."""
+        if ".." in path or path.startswith("/"):
+            return False
+        file_path = os.path.join(BASE_DIR, path)
+        if not os.path.isfile(file_path):
+            return False
+        try:
+            with open(file_path, "rb") as f:
+                body = f.read()
+        except OSError:
+            return False
+        content_type, _ = mimetypes.guess_type(path)
+        content_type = content_type or "application/octet-stream"
+        if path.endswith(".html"):
+            content_type = "text/html; charset=utf-8"
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+        return True
+
     def do_GET(self) -> None:
         if self.path == "/health":
             self._send_json({"status": "ok", "time": now_text()})
             return
 
+        # 디지털 명함: /card, /card/, /card/index.html, /card/profile.html, /card/style.css 등
+        path_raw = self.path.split("?")[0]
+        if path_raw == CARD_PREFIX or path_raw == CARD_PREFIX + "/":
+            if self._serve_static_file("index.html"):
+                return
+        if path_raw.startswith(CARD_PREFIX + "/"):
+            sub = path_raw[len(CARD_PREFIX) + 1 :].lstrip("/")
+            if sub in ("", "index.html"):
+                if self._serve_static_file("index.html"):
+                    return
+            elif self._serve_static_file(sub):
+                return
+
         if self.path in ["/", "/index.html"]:
             with LOCK:
                 posts = COMMUNITY_POSTS[:]
-            page = (
-                HTML_PAGE.replace("__POSTS_JSON__", json.dumps(posts, ensure_ascii=False))
-                .replace("__CHART_JSON__", json.dumps(initial_chart(), ensure_ascii=False))
-            )
+            page = HTML_PAGE.replace("__POSTS_JSON__", json.dumps(posts, ensure_ascii=False))
             self._send_html(page)
-            return
-
-        if self.path == "/api/chart":
-            self._send_json(next_chart())
             return
 
         if self.path == "/api/community":
@@ -757,7 +718,6 @@ class AppHandler(BaseHTTPRequestHandler):
         self._send_json({"error": "Not found"}, status=HTTPStatus.NOT_FOUND)
 
     def log_message(self, format: str, *args) -> None:
-        # 콘솔 로그를 줄여 데모 출력이 복잡해지지 않게 유지
         return
 
 
