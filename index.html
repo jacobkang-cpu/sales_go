@@ -1,14 +1,227 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hello World</title>
-  <link href='/style.css' rel='stylesheet'>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#7a9bb8" />
+  <title>강명구 · 디지털 명함</title>
+  <!-- 공유 시 미리보기 (카카오톡, 문자 등) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="강명구 · 닥터팔레트 디지털 명함" />
+  <meta property="og:description" content="책임 · 원장님과 같이 성장을 함께합니다. 병원 클라우드 EMR 닥터팔레트" />
+  <meta property="og:image" content="" id="ogImage" />
+  <meta property="og:url" content="" id="ogUrl" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="강명구 · 디지털 명함" />
+  <meta name="twitter:description" content="원장님과 같이 성장을 함께합니다. 닥터팔레트" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="style.css" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      background: linear-gradient(165deg, #e8f4f8 0%, #f5eef8 40%, #f0f4e8 100%);
+      font-family: "Noto Sans KR", sans-serif;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .card-page {
+      width: 100%;
+      max-width: 420px;
+      min-height: 100vh;
+      min-height: 100dvh;
+      padding: 1.25rem 1rem 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .card-cta-top {
+      font-size: 0.9rem;
+      color: #5a6a76;
+      margin-bottom: 1rem;
+      text-align: center;
+      font-weight: 500;
+    }
+    .business-card {
+      display: block;
+      width: 100%;
+      background: #fff;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(100,90,120,0.12);
+      border: 1px solid rgba(200,180,220,0.35);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .card-photo-wrap {
+      width: 100%;
+      padding: 1.75rem 1.75rem 0;
+      text-align: center;
+      background: linear-gradient(180deg, #f8f6fc 0%, #fff 100%);
+    }
+    .card-avatar {
+      width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #e8e0f0, #e0e8f0);
+      margin: 0 auto;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.2rem;
+      color: #9a9ab0;
+    }
+    .card-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .card-info {
+      padding: 1rem 1.25rem 1.25rem;
+      background: linear-gradient(180deg, #6b7fa8 0%, #5a6d94 100%);
+      color: #fff;
+    }
+    .card-name {
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.2rem;
+    }
+    .card-role {
+      font-size: 0.8rem;
+      opacity: 0.95;
+      margin-bottom: 0.15rem;
+    }
+    .card-company {
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+    }
+    .card-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+    .card-tag {
+      padding: 0.35rem 0.65rem;
+      background: rgba(255,255,255,0.2);
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    .card-contact {
+      padding: 1rem 1.25rem;
+      background: rgba(255,255,255,0.97);
+      border-top: 1px solid rgba(200,180,220,0.25);
+    }
+    .card-contact-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+      font-size: 0.9rem;
+      color: #2d2d3a;
+      text-decoration: none;
+    }
+    .card-contact-row:last-child { border-bottom: none; }
+    .card-contact-row span:first-child { color: #6a6a7e; }
+    .card-contact-row .arrow { color: #9a9ab0; font-size: 0.8rem; }
+    .card-btn-wrap {
+      padding: 1rem 1.25rem 1.25rem;
+      background: #fff;
+    }
+    .card-btn {
+      display: block;
+      width: 100%;
+      padding: 0.95rem 1rem;
+      background: linear-gradient(135deg, #8b7cb0, #9a8bc4);
+      color: #fff;
+      font-weight: 600;
+      font-size: 1rem;
+      text-align: center;
+      border-radius: 14px;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+      text-decoration: none;
+      box-sizing: border-box;
+    }
+    .card-btn:hover { color: #fff; opacity: 0.95; }
+    .card-btn:active { opacity: 0.9; }
+  </style>
 </head>
 <body>
-  <h1>Hello, world!</h1>
-  <button onclick="console.log('hello');">Press me</button>
-  <script defer type="text/javascript" src="/main.js"></script>
+  <div class="card-page">
+    <p class="card-cta-top">상담 버튼으로 빠른 문의 시작</p>
+    <div class="business-card">
+      <div class="card-photo-wrap">
+        <div class="card-avatar"><img id="cardPhoto" src="image/profile.jpg" alt="강명구"></div>
+      </div>
+      <div class="card-info">
+        <div class="card-name">강명구</div>
+        <div class="card-role">책임 · 원장님과 같이 성장을 함께합니다.</div>
+        <div class="card-company">닥터팔레트</div>
+        <div class="card-tags">
+          <span class="card-tag">#10년차 영업</span>
+          <span class="card-tag">#병의원 차트</span>
+          <span class="card-tag">#마케팅</span>
+        </div>
+      </div>
+      <div class="card-contact">
+        <a href="tel:010-8793-7767" class="card-contact-row">
+          <span>휴대전화</span>
+          <span>010-8793-7767 <span class="arrow">›</span></span>
+        </a>
+        <a href="mailto:jacob.kang@medibloc.org" class="card-contact-row">
+          <span>이메일</span>
+          <span>jacob.kang@medibloc.org <span class="arrow">›</span></span>
+        </a>
+      </div>
+      <div class="card-btn-wrap">
+        <a href="profile.html" class="card-btn">명함 확인</a>
+      </div>
+    </div>
+  </div>
+  <script src="main.js" defer></script>
+  <script>
+    (function(){
+      var el = document.getElementById('cardPhoto');
+      if (!el) return;
+      var base = (function(){
+        var href = location.href || '';
+        var last = href.lastIndexOf('/');
+        if (last === -1) return '';
+        return href.slice(0, last + 1);
+      })();
+      var tries = [
+        'image/profile.jpg',
+        'image/profile.png',
+        'image/profile.jpeg',
+        '이미지/profile.jpg',
+        '이미지/profile.png',
+        './image/profile.jpg',
+        './이미지/profile.jpg'
+      ];
+      var idx = 0;
+      el.src = tries[0];
+      el.onerror = function(){
+        idx++;
+        if (idx < tries.length) {
+          el.src = tries[idx];
+        } else if (base) {
+          el.src = base + 'image/profile.jpg';
+          el.onerror = function(){ el.src = base + '이미지/profile.png'; };
+        }
+      };
+    })();
+  </script>
 </body>
 </html>
