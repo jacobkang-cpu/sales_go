@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>디지털 명함 어드민</title>
+  <style>
+    :root {
+      --bg: #f3f6fb;
+      --panel: #fff;
+      --line: #d5ddea;
+      --text: #1f2937;
+      --sub: #64748b;
+      --brand: #2563eb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Noto Sans KR", "Malgun Gothic", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 15% 8%, #dbeafe 0%, transparent 35%),
+        radial-gradient(circle at 90% 2%, #ede9fe 0%, transparent 30%),
+        var(--bg);
+    }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 24px; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+    }
+    h1 { margin: 0 0 8px; font-size: 1.5rem; }
+    .sub { margin: 0; color: var(--sub); font-size: 0.92rem; }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .full { grid-column: 1 / -1; }
+    label { display: block; font-size: 0.88rem; font-weight: 700; margin-bottom: 6px; }
+    input, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 11px;
+      font: inherit;
+      background: #fff;
+    }
+    textarea { min-height: 80px; resize: vertical; }
+    .row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .btn {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn.primary { background: var(--brand); color: #fff; }
+    .btn.ghost { background: #e9eefc; color: #1e3a8a; }
+    .status { min-height: 1.3em; margin-top: 10px; font-size: 0.9rem; }
+    .preview {
+      margin-top: 12px;
+      width: 120px;
+      height: 120px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      object-fit: cover;
+      background: #f8fafc;
+    }
+    .links {
+      margin-top: 12px;
+      font-size: 0.9rem;
+      color: var(--sub);
+      display: grid;
+      gap: 6px;
+    }
+    .links a { color: #1d4ed8; text-decoration: none; }
+    @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="panel">
+      <h1>디지털 명함 어드민</h1>
+      <p class="sub">코드 수정 없이 이름/문구/연락처/이미지를 저장하고, 대시보드에서 클릭률을 확인할 수 있습니다.</p>
+
+      <div class="grid">
+        <div>
+          <label for="adminToken">관리자 토큰 (X-Admin-Token)</label>
+          <input id="adminToken" type="password" placeholder="기본값: admin1234 (운영에서는 변경 권장)" />
+        </div>
+        <div>
+          <label for="slug">카드 ID (slug)</label>
+          <input id="slug" value="woojin" />
+        </div>
+
+        <div>
+          <label for="name">이름</label>
+          <input id="name" />
+        </div>
+        <div>
+          <label for="headline">메인 문구</label>
+          <input id="headline" />
+        </div>
+
+        <div class="full">
+          <label for="tags">태그 (쉼표로 구분)</label>
+          <input id="tags" placeholder="#성장파트너, #성장동력" />
+        </div>
+
+        <div>
+          <label for="phone">휴대전화</label>
+          <input id="phone" />
+        </div>
+        <div>
+          <label for="email">이메일</label>
+          <input id="email" />
+        </div>
+
+        <div class="full">
+          <label for="profileSubtitle">상세페이지 이름 아래 문구</label>
+          <input id="profileSubtitle" />
+        </div>
+
+        <div>
+          <label for="newsLabel">소식 버튼 라벨</label>
+          <input id="newsLabel" />
+        </div>
+        <div>
+          <label for="newsUrl">소식 URL</label>
+          <input id="newsUrl" />
+        </div>
+
+        <div>
+          <label for="instagramLabel">인스타 버튼 라벨</label>
+          <input id="instagramLabel" />
+        </div>
+        <div>
+          <label for="instagramUrl">인스타 URL</label>
+          <input id="instagramUrl" />
+        </div>
+
+        <div class="full">
+          <label for="imageFile">프로필 이미지 파일</label>
+          <input id="imageFile" type="file" accept="image/*" />
+          <img id="imagePreview" class="preview" alt="이미지 미리보기" />
+        </div>
+      </div>
+
+      <div class="row" style="margin-top: 14px;">
+        <button id="loadBtn" class="btn ghost" type="button">불러오기</button>
+        <button id="saveBtn" class="btn primary" type="button">저장하기</button>
+      </div>
+      <div id="status" class="status"></div>
+
+      <div class="links">
+        <div>카드 링크: <a id="cardLink" href="#" target="_blank" rel="noopener">-</a></div>
+        <div>상세 링크: <a id="profileLink" href="#" target="_blank" rel="noopener">-</a></div>
+        <div>대시보드 링크: <a id="dashboardLink" href="#" target="_blank" rel="noopener">-</a></div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const els = {
+      token: $("adminToken"),
+      slug: $("slug"),
+      name: $("name"),
+      headline: $("headline"),
+      tags: $("tags"),
+      phone: $("phone"),
+      email: $("email"),
+      profileSubtitle: $("profileSubtitle"),
+      newsLabel: $("newsLabel"),
+      newsUrl: $("newsUrl"),
+      instagramLabel: $("instagramLabel"),
+      instagramUrl: $("instagramUrl"),
+      imageFile: $("imageFile"),
+      imagePreview: $("imagePreview"),
+      status: $("status"),
+      cardLink: $("cardLink"),
+      profileLink: $("profileLink"),
+      dashboardLink: $("dashboardLink"),
+    };
+
+    let imageData = "";
+
+    function showStatus(text, ok) {
+      els.status.textContent = text;
+      els.status.style.color = ok ? "#166534" : "#b91c1c";
+    }
+
+    function getSlug() {
+      return (els.slug.value || "woojin").trim().toLowerCase();
+    }
+
+    function syncLinks() {
+      const slug = encodeURIComponent(getSlug());
+      els.cardLink.href = `/card/woojin_card.html?slug=${slug}`;
+      els.profileLink.href = `/card/woojin_profile.html?slug=${slug}`;
+      els.dashboardLink.href = `/dashboard.html?slug=${slug}`;
+      els.cardLink.textContent = els.cardLink.href;
+      els.profileLink.textContent = els.profileLink.href;
+      els.dashboardLink.textContent = els.dashboardLink.href;
+    }
+
+    function fillForm(card) {
+      els.slug.value = card.slug || "woojin";
+      els.name.value = card.name || "";
+      els.headline.value = card.headline || "";
+      els.tags.value = (card.tags || []).join(", ");
+      els.phone.value = card.phone || "";
+      els.email.value = card.email || "";
+      els.profileSubtitle.value = card.profile_subtitle || "";
+      els.newsLabel.value = card.news_label || "";
+      els.newsUrl.value = card.news_url || "";
+      els.instagramLabel.value = card.instagram_label || "";
+      els.instagramUrl.value = card.instagram_url || "";
+      imageData = card.image_data || "";
+      els.imagePreview.src = imageData || "/card/image/woojin_profile.png";
+      syncLinks();
+    }
+
+    async function loadConfig() {
+      syncLinks();
+      const slug = encodeURIComponent(getSlug());
+      const res = await fetch(`/api/card-config?slug=${slug}`);
+      if (!res.ok) throw new Error("설정 불러오기에 실패했습니다.");
+      const data = await res.json();
+      fillForm(data.card || {});
+      showStatus("설정을 불러왔습니다.", true);
+    }
+
+    function buildPayload() {
+      return {
+        slug: getSlug(),
+        name: els.name.value.trim(),
+        headline: els.headline.value.trim(),
+        tags: els.tags.value.trim(),
+        phone: els.phone.value.trim(),
+        email: els.email.value.trim(),
+        profile_subtitle: els.profileSubtitle.value.trim(),
+        news_label: els.newsLabel.value.trim(),
+        news_url: els.newsUrl.value.trim(),
+        instagram_label: els.instagramLabel.value.trim(),
+        instagram_url: els.instagramUrl.value.trim(),
+        image_data: imageData || "",
+      };
+    }
+
+    async function saveConfig() {
+      const token = els.token.value.trim();
+      if (!token) {
+        showStatus("관리자 토큰을 입력하세요.", false);
+        return;
+      }
+      const res = await fetch("/api/card-config", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Admin-Token": token,
+        },
+        body: JSON.stringify(buildPayload()),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "저장 실패");
+      fillForm(data.card || {});
+      showStatus("저장되었습니다.", true);
+    }
+
+    els.imageFile.addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        imageData = String(reader.result || "");
+        els.imagePreview.src = imageData;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    $("loadBtn").addEventListener("click", async () => {
+      try {
+        await loadConfig();
+      } catch (err) {
+        showStatus(err.message || "불러오기 실패", false);
+      }
+    });
+    $("saveBtn").addEventListener("click", async () => {
+      try {
+        await saveConfig();
+      } catch (err) {
+        showStatus(err.message || "저장 실패", false);
+      }
+    });
+    els.slug.addEventListener("input", syncLinks);
+
+    const fromQuery = new URLSearchParams(location.search).get("slug");
+    if (fromQuery) els.slug.value = fromQuery;
+    syncLinks();
+    loadConfig().catch(() => {});
+  </script>
+</body>
+</html>

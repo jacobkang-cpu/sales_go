@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>디지털 명함 대시보드</title>
+  <style>
+    :root {
+      --bg: #f6f8fc;
+      --panel: #fff;
+      --line: #dae2ef;
+      --text: #0f172a;
+      --sub: #64748b;
+      --brand: #2563eb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Noto Sans KR", "Malgun Gothic", sans-serif;
+      background:
+        radial-gradient(circle at 10% 0%, #dbeafe 0%, transparent 32%),
+        radial-gradient(circle at 95% 0%, #ede9fe 0%, transparent 30%),
+        var(--bg);
+      color: var(--text);
+    }
+    .wrap { max-width: 1160px; margin: 0 auto; padding: 24px; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    h1 { margin: 0 0 8px; font-size: 1.5rem; }
+    .sub { margin: 0; color: var(--sub); font-size: 0.92rem; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+    input {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font: inherit;
+      background: #fff;
+      min-width: 180px;
+    }
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-weight: 700;
+      background: var(--brand);
+      color: #fff;
+      cursor: pointer;
+    }
+    .status { min-height: 1.2em; margin-top: 8px; font-size: 0.9rem; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+    }
+    .stat {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      background: #f8fbff;
+    }
+    .stat .k { color: var(--sub); font-size: 0.82rem; }
+    .stat .v { font-size: 1.2rem; font-weight: 800; margin-top: 4px; }
+    h2 { margin: 0 0 8px; font-size: 1.02rem; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      padding: 8px;
+    }
+    th { background: #f8fafc; color: #334155; }
+    .mono { font-family: Consolas, Menlo, monospace; }
+    .ua {
+      max-width: 400px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: #475569;
+    }
+    @media (max-width: 980px) { .stats { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 640px) { .stats { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="panel">
+      <h1>디지털 명함 대시보드</h1>
+      <p class="sub">기능별 클릭수/클릭률, 방문 세션(IP/브라우저), 최근 이벤트를 확인합니다.</p>
+      <div class="toolbar">
+        <input id="token" type="password" placeholder="관리자 토큰" />
+        <input id="slug" value="woojin" />
+        <button id="loadBtn" type="button">새로고침</button>
+      </div>
+      <div id="status" class="status"></div>
+    </section>
+
+    <section class="panel">
+      <div class="stats">
+        <div class="stat"><div class="k">카드 조회</div><div id="viewsCard" class="v">0</div></div>
+        <div class="stat"><div class="k">상세 조회</div><div id="viewsProfile" class="v">0</div></div>
+        <div class="stat"><div class="k">총 클릭</div><div id="totalClicks" class="v">0</div></div>
+        <div class="stat"><div class="k">클릭률(카드 대비)</div><div id="ctr" class="v">0%</div></div>
+        <div class="stat"><div class="k">총 이벤트</div><div id="totalEvents" class="v">0</div></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>기능별 클릭수</h2>
+      <table>
+        <thead><tr><th>기능</th><th>클릭수</th></tr></thead>
+        <tbody id="clickRows"></tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2>방문자 세션 정보</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Session</th>
+            <th>IP</th>
+            <th>브라우저</th>
+            <th>첫 방문</th>
+            <th>마지막 방문</th>
+            <th>이벤트 수</th>
+          </tr>
+        </thead>
+        <tbody id="visitorRows"></tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2>최근 이벤트</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>시간</th>
+            <th>유형</th>
+            <th>대상</th>
+            <th>페이지</th>
+            <th>Session</th>
+            <th>IP</th>
+            <th>Referer</th>
+          </tr>
+        </thead>
+        <tbody id="eventRows"></tbody>
+      </table>
+    </section>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const els = {
+      token: $("token"),
+      slug: $("slug"),
+      status: $("status"),
+      viewsCard: $("viewsCard"),
+      viewsProfile: $("viewsProfile"),
+      totalClicks: $("totalClicks"),
+      ctr: $("ctr"),
+      totalEvents: $("totalEvents"),
+      clickRows: $("clickRows"),
+      visitorRows: $("visitorRows"),
+      eventRows: $("eventRows"),
+    };
+
+    function setStatus(text, ok) {
+      els.status.textContent = text;
+      els.status.style.color = ok ? "#166534" : "#b91c1c";
+    }
+
+    function esc(text) {
+      return String(text || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
+
+    function renderSummary(summary) {
+      els.viewsCard.textContent = summary.views_card || 0;
+      els.viewsProfile.textContent = summary.views_profile || 0;
+      els.totalClicks.textContent = summary.total_clicks || 0;
+      els.ctr.textContent = `${summary.click_rate_percent || 0}%`;
+      els.totalEvents.textContent = summary.total_events || 0;
+
+      const clicks = summary.clicks_by_target || {};
+      const rows = Object.entries(clicks)
+        .map(([target, count]) => `<tr><td>${esc(target)}</td><td>${count}</td></tr>`)
+        .join("");
+      els.clickRows.innerHTML = rows || `<tr><td colspan="2">데이터 없음</td></tr>`;
+    }
+
+    function renderVisitors(visitors) {
+      const rows = (visitors || []).map((v) => `
+        <tr>
+          <td class="mono">${esc(v.session_id || "-")}</td>
+          <td class="mono">${esc(v.ip || "-")}</td>
+          <td class="ua" title="${esc(v.user_agent || "-")}">${esc(v.user_agent || "-")}</td>
+          <td>${esc(v.first_seen || "-")}</td>
+          <td>${esc(v.last_seen || "-")}</td>
+          <td>${esc(v.events || 0)}</td>
+        </tr>
+      `).join("");
+      els.visitorRows.innerHTML = rows || `<tr><td colspan="6">데이터 없음</td></tr>`;
+    }
+
+    function renderEvents(events) {
+      const rows = (events || []).map((e) => `
+        <tr>
+          <td>${esc(e.created_at || "-")}</td>
+          <td>${esc(e.event_type || "-")}</td>
+          <td>${esc(e.event_target || "-")}</td>
+          <td>${esc(e.page || "-")}</td>
+          <td class="mono">${esc(e.session_id || "-")}</td>
+          <td class="mono">${esc(e.ip || "-")}</td>
+          <td>${esc(e.referer || "-")}</td>
+        </tr>
+      `).join("");
+      els.eventRows.innerHTML = rows || `<tr><td colspan="7">데이터 없음</td></tr>`;
+    }
+
+    async function loadAnalytics() {
+      const token = els.token.value.trim();
+      if (!token) {
+        setStatus("관리자 토큰을 입력하세요.", false);
+        return;
+      }
+      const slug = encodeURIComponent((els.slug.value || "woojin").trim().toLowerCase());
+      const res = await fetch(`/api/card-analytics?slug=${slug}`, {
+        headers: { "X-Admin-Token": token }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "조회 실패");
+      renderSummary(data.summary || {});
+      renderVisitors(data.visitors || []);
+      renderEvents(data.recent_events || []);
+      setStatus("조회 완료", true);
+    }
+
+    $("loadBtn").addEventListener("click", () => {
+      loadAnalytics().catch((err) => setStatus(err.message || "조회 실패", false));
+    });
+
+    const slugFromQuery = new URLSearchParams(location.search).get("slug");
+    if (slugFromQuery) els.slug.value = slugFromQuery;
+  </script>
+</body>
+</html>

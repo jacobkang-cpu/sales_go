@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>남우진 · 프로필</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="style.css" rel="stylesheet" />
+  <style>
+    .profile-page {
+      min-height: 100vh;
+      background: linear-gradient(165deg, #e8f4f8 0%, #f5eef8 40%, #f0f4e8 100%);
+      color: #2d2d3a;
+      font-family: "Noto Sans KR", sans-serif;
+      padding: 2rem 1.5rem 4rem;
+    }
+    .profile-wrap {
+      max-width: 520px;
+      margin: 0 auto;
+    }
+    .profile-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .profile-avatar {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #e8e0f0, #e0e8f0);
+      border: 3px solid rgba(200,180,220,0.5);
+      margin: 0 auto 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .profile-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .profile-name {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.35rem;
+      color: #2d2d3a;
+    }
+    .profile-role {
+      font-size: 0.95rem;
+      color: #5a5a72;
+      font-weight: 500;
+    }
+    .profile-links {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .profile-link {
+      display: block;
+      padding: 1rem 1.25rem;
+      background: rgba(255,255,255,0.85);
+      border: 1px solid rgba(200,180,220,0.4);
+      border-radius: 14px;
+      color: #2d2d3a;
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 0.95rem;
+      text-align: center;
+    }
+    .profile-link.primary {
+      background: linear-gradient(135deg, #8b7cb0, #9a8bc4);
+      border: none;
+      color: #fff;
+    }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: #6a6a7e;
+      text-decoration: none;
+      font-size: 0.9rem;
+      margin-bottom: 1.5rem;
+    }
+  </style>
+</head>
+<body class="profile-page">
+  <div class="profile-wrap">
+    <a id="backLink" href="woojin_card.html" class="back-link">← 명함으로 돌아가기</a>
+
+    <header class="profile-header">
+      <div class="profile-avatar">
+        <img id="profilePhoto" src="image/woojin_profile.png" alt="남우진">
+      </div>
+      <h1 id="profileName" class="profile-name">남우진</h1>
+      <p id="profileSubtitle" class="profile-role">파트너와 함께 성장합니다.</p>
+    </header>
+
+    <nav class="profile-links">
+      <a id="newsLink" href="https://www.atomy.kr/" class="profile-link primary" target="_blank" rel="noopener">애터미 소식</a>
+      <a id="instagramLink" href="https://www.instagram.com/" class="profile-link" target="_blank" rel="noopener">인스타그램</a>
+      <a id="emailLink" href="#" class="profile-link">이메일 문의</a>
+      <a id="phoneLink" href="tel:010-5429-9916" class="profile-link">연락처</a>
+    </nav>
+  </div>
+  <script>
+    (function() {
+      const DEFAULT_CARD = {
+        slug: "woojin",
+        name: "남우진",
+        profile_subtitle: "파트너와 함께 성장합니다.",
+        phone: "010-5429-9916",
+        email: "%%",
+        news_label: "애터미 소식",
+        news_url: "https://www.atomy.kr/",
+        instagram_label: "인스타그램",
+        instagram_url: "https://www.instagram.com/",
+        image_data: ""
+      };
+
+      const params = new URLSearchParams(location.search);
+      const slug = (params.get("slug") || DEFAULT_CARD.slug).trim().toLowerCase();
+      const sessionKey = "card_session_id";
+      const el = {
+        photo: document.getElementById("profilePhoto"),
+        name: document.getElementById("profileName"),
+        subtitle: document.getElementById("profileSubtitle"),
+        newsLink: document.getElementById("newsLink"),
+        instagramLink: document.getElementById("instagramLink"),
+        emailLink: document.getElementById("emailLink"),
+        phoneLink: document.getElementById("phoneLink"),
+        backLink: document.getElementById("backLink"),
+      };
+
+      function getSessionId() {
+        try {
+          let id = localStorage.getItem(sessionKey);
+          if (!id) {
+            id = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+            localStorage.setItem(sessionKey, id);
+          }
+          return id;
+        } catch (e) {
+          return "anonymous";
+        }
+      }
+      const sessionId = getSessionId();
+
+      function track(eventType, eventTarget) {
+        const payload = JSON.stringify({
+          slug,
+          event_type: eventType,
+          event_target: eventTarget,
+          page: "profile",
+          session_id: sessionId
+        });
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon("/api/card-event", payload);
+          return;
+        }
+        fetch("/api/card-event", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: payload,
+          keepalive: true
+        }).catch(() => {});
+      }
+
+      function toMailHref(email) {
+        const value = String(email || "").trim();
+        if (!value || value === "%%") return "#";
+        return value.startsWith("mailto:") ? value : `mailto:${value}`;
+      }
+
+      function applyImage(imageData) {
+        const tries = [
+          imageData || "",
+          "image/woojin_profile.png",
+          "image/woojin_profile.jpg",
+          "이미지/woojin_profile.png",
+          "이미지/woojin_profile.jpg"
+        ].filter(Boolean);
+        let idx = 0;
+        el.photo.src = tries[0];
+        el.photo.onerror = function() {
+          idx += 1;
+          if (idx < tries.length) {
+            el.photo.src = tries[idx];
+          }
+        };
+      }
+
+      function applyCard(card) {
+        el.name.textContent = card.name || DEFAULT_CARD.name;
+        el.subtitle.textContent = card.profile_subtitle || DEFAULT_CARD.profile_subtitle;
+        el.newsLink.textContent = card.news_label || DEFAULT_CARD.news_label;
+        el.newsLink.href = card.news_url || DEFAULT_CARD.news_url;
+        el.instagramLink.textContent = card.instagram_label || DEFAULT_CARD.instagram_label;
+        el.instagramLink.href = card.instagram_url || DEFAULT_CARD.instagram_url;
+        el.emailLink.href = toMailHref(card.email || DEFAULT_CARD.email);
+        el.phoneLink.href = `tel:${(card.phone || DEFAULT_CARD.phone).trim()}`;
+        el.backLink.href = `woojin_card.html?slug=${encodeURIComponent(slug)}`;
+        applyImage(card.image_data || "");
+      }
+
+      async function loadCard() {
+        try {
+          const res = await fetch(`/api/card-config?slug=${encodeURIComponent(slug)}`);
+          if (!res.ok) throw new Error("load failed");
+          const data = await res.json();
+          applyCard(Object.assign({}, DEFAULT_CARD, data.card || {}));
+        } catch (e) {
+          applyCard(DEFAULT_CARD);
+        }
+      }
+
+      el.newsLink.addEventListener("click", () => track("click_news", "news"));
+      el.instagramLink.addEventListener("click", () => track("click_instagram", "instagram"));
+      el.emailLink.addEventListener("click", () => track("click_email", "email"));
+      el.phoneLink.addEventListener("click", () => track("click_phone", "phone"));
+      el.backLink.addEventListener("click", () => track("click_back", "back"));
+
+      loadCard();
+      track("view_profile", "profile");
+    })();
+  </script>
+</body>
+</html>

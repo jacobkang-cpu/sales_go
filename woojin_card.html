@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#7a9bb8" />
+  <title>남우진 · 디지털 명함</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="style.css" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      background: linear-gradient(165deg, #e8f4f8 0%, #f5eef8 40%, #f0f4e8 100%);
+      font-family: "Noto Sans KR", sans-serif;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .card-page {
+      width: 100%;
+      max-width: 420px;
+      min-height: 100vh;
+      min-height: 100dvh;
+      padding: 1.25rem 1rem 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .card-cta-top {
+      font-size: 0.9rem;
+      color: #5a6a76;
+      margin-bottom: 1rem;
+      text-align: center;
+      font-weight: 500;
+    }
+    .business-card {
+      display: block;
+      width: 100%;
+      background: #fff;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(100,90,120,0.12);
+      border: 1px solid rgba(200,180,220,0.35);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .card-photo-wrap {
+      width: 100%;
+      padding: 1.75rem 1.75rem 0;
+      text-align: center;
+      background: linear-gradient(180deg, #f8f6fc 0%, #fff 100%);
+    }
+    .card-avatar {
+      width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #e8e0f0, #e0e8f0);
+      margin: 0 auto;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.2rem;
+      color: #9a9ab0;
+    }
+    .card-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .card-info {
+      padding: 1rem 1.25rem 1.25rem;
+      background: linear-gradient(180deg, #6b7fa8 0%, #5a6d94 100%);
+      color: #fff;
+    }
+    .card-name {
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.2rem;
+    }
+    .card-role {
+      font-size: 0.9rem;
+      opacity: 0.95;
+      margin-bottom: 0.75rem;
+      line-height: 1.5;
+    }
+    .card-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+    .card-tag {
+      padding: 0.35rem 0.65rem;
+      background: rgba(255,255,255,0.2);
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    .card-contact {
+      padding: 1rem 1.25rem;
+      background: rgba(255,255,255,0.97);
+      border-top: 1px solid rgba(200,180,220,0.25);
+    }
+    .card-contact-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+      font-size: 0.9rem;
+      color: #2d2d3a;
+      text-decoration: none;
+    }
+    .card-contact-row:last-child { border-bottom: none; }
+    .card-contact-row span:first-child { color: #6a6a7e; }
+    .card-contact-row .arrow { color: #9a9ab0; font-size: 0.8rem; }
+    .card-btn-wrap {
+      padding: 1rem 1.25rem 1.25rem;
+      background: #fff;
+    }
+    .card-btn {
+      display: block;
+      width: 100%;
+      padding: 0.95rem 1rem;
+      background: linear-gradient(135deg, #8b7cb0, #9a8bc4);
+      color: #fff;
+      font-weight: 600;
+      font-size: 1rem;
+      text-align: center;
+      border-radius: 14px;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+      text-decoration: none;
+      box-sizing: border-box;
+    }
+  </style>
+</head>
+<body>
+  <div class="card-page">
+    <p class="card-cta-top">연락 버튼으로 빠른 문의 시작</p>
+    <div class="business-card">
+      <div class="card-photo-wrap">
+        <div class="card-avatar"><img id="cardPhoto" src="image/woojin_profile.png" alt="남우진"></div>
+      </div>
+      <div class="card-info">
+        <div id="cardName" class="card-name">남우진</div>
+        <div id="cardHeadline" class="card-role">애터미와 함께 노후 안정.</div>
+        <div id="cardTags" class="card-tags">
+          <span class="card-tag">#성장파트너</span>
+          <span class="card-tag">#성장동력</span>
+        </div>
+      </div>
+      <div class="card-contact">
+        <a id="phoneLink" href="tel:010-5429-9916" class="card-contact-row">
+          <span>휴대전화</span>
+          <span id="phoneText">010-5429-9916 <span class="arrow">›</span></span>
+        </a>
+        <a id="emailLink" href="#" class="card-contact-row">
+          <span>이메일</span>
+          <span id="emailText">%% <span class="arrow">›</span></span>
+        </a>
+      </div>
+      <div class="card-btn-wrap">
+        <a id="detailLink" href="woojin_profile.html" class="card-btn">명함 확인</a>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function() {
+      const DEFAULT_CARD = {
+        slug: "woojin",
+        name: "남우진",
+        headline: "애터미와 함께 노후 안정.",
+        tags: ["#성장파트너", "#성장동력"],
+        phone: "010-5429-9916",
+        email: "%%",
+        image_data: ""
+      };
+
+      const params = new URLSearchParams(location.search);
+      const slug = (params.get("slug") || DEFAULT_CARD.slug).trim().toLowerCase();
+      const sessionKey = "card_session_id";
+      const cardPhoto = document.getElementById("cardPhoto");
+      const cardName = document.getElementById("cardName");
+      const cardHeadline = document.getElementById("cardHeadline");
+      const cardTags = document.getElementById("cardTags");
+      const phoneLink = document.getElementById("phoneLink");
+      const phoneText = document.getElementById("phoneText");
+      const emailLink = document.getElementById("emailLink");
+      const emailText = document.getElementById("emailText");
+      const detailLink = document.getElementById("detailLink");
+
+      function getSessionId() {
+        try {
+          let id = localStorage.getItem(sessionKey);
+          if (!id) {
+            id = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+            localStorage.setItem(sessionKey, id);
+          }
+          return id;
+        } catch (e) {
+          return "anonymous";
+        }
+      }
+
+      const sessionId = getSessionId();
+
+      function track(eventType, eventTarget) {
+        const payload = JSON.stringify({
+          slug,
+          event_type: eventType,
+          event_target: eventTarget,
+          page: "card",
+          session_id: sessionId
+        });
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon("/api/card-event", payload);
+          return;
+        }
+        fetch("/api/card-event", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: payload,
+          keepalive: true
+        }).catch(() => {});
+      }
+
+      function renderTags(tags) {
+        const safeTags = Array.isArray(tags) && tags.length ? tags : DEFAULT_CARD.tags;
+        cardTags.innerHTML = safeTags
+          .map((tag) => `<span class="card-tag">${String(tag)}</span>`)
+          .join("");
+      }
+
+      function toMailHref(email) {
+        const value = String(email || "").trim();
+        if (!value || value === "%%") return "#";
+        return value.startsWith("mailto:") ? value : `mailto:${value}`;
+      }
+
+      function applyImage(card) {
+        const tries = [
+          card.image_data || "",
+          "image/woojin_profile.png",
+          "image/woojin_profile.jpg",
+          "이미지/woojin_profile.png",
+          "이미지/woojin_profile.jpg"
+        ].filter(Boolean);
+        let idx = 0;
+        cardPhoto.src = tries[0];
+        cardPhoto.onerror = function() {
+          idx += 1;
+          if (idx < tries.length) {
+            cardPhoto.src = tries[idx];
+          }
+        };
+      }
+
+      function applyCard(card) {
+        cardName.textContent = card.name || DEFAULT_CARD.name;
+        cardHeadline.textContent = card.headline || DEFAULT_CARD.headline;
+        renderTags(card.tags);
+
+        const phone = (card.phone || DEFAULT_CARD.phone).trim();
+        phoneLink.href = `tel:${phone}`;
+        phoneText.innerHTML = `${phone} <span class="arrow">›</span>`;
+
+        const email = (card.email || DEFAULT_CARD.email).trim();
+        emailLink.href = toMailHref(email);
+        emailText.innerHTML = `${email || "%%"} <span class="arrow">›</span>`;
+
+        detailLink.href = `woojin_profile.html?slug=${encodeURIComponent(slug)}`;
+        applyImage(card);
+      }
+
+      async function loadCard() {
+        try {
+          const res = await fetch(`/api/card-config?slug=${encodeURIComponent(slug)}`);
+          if (!res.ok) throw new Error("load failed");
+          const data = await res.json();
+          applyCard(Object.assign({}, DEFAULT_CARD, data.card || {}));
+        } catch (e) {
+          applyCard(DEFAULT_CARD);
+        }
+      }
+
+      phoneLink.addEventListener("click", () => track("click_phone", "phone"));
+      emailLink.addEventListener("click", () => track("click_email", "email"));
+      detailLink.addEventListener("click", () => track("click_detail", "detail"));
+
+      loadCard();
+      track("view_card", "card");
+    })();
+  </script>
+</body>
+</html>

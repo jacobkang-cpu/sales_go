@@ -4,10 +4,11 @@ import datetime as dt
 import json
 import mimetypes
 import os
+import sqlite3
 import threading
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlparse
 
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8000"))
@@ -15,6 +16,23 @@ PORT = int(os.getenv("PORT", "8000"))
 LOCK = threading.Lock()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CARD_PREFIX = "/card"
+DB_PATH = os.path.join(BASE_DIR, "card_admin.db")
+ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "admin1234")
+
+DEFAULT_CARD_CONFIG = {
+    "slug": "woojin",
+    "name": "남우진",
+    "headline": "애터미와 함께 노후 안정.",
+    "tags": ["#성장파트너", "#성장동력"],
+    "phone": "010-5429-9916",
+    "email": "%%",
+    "profile_subtitle": "파트너와 함께 성장합니다.",
+    "news_label": "애터미 소식",
+    "news_url": "https://www.atomy.kr/",
+    "instagram_label": "인스타그램",
+    "instagram_url": "https://www.instagram.com/",
+    "image_data": "",
+}
 
 DEMO_INQUIRIES: list[dict] = []
 COMMUNITY_POSTS: list[dict] = [
@@ -596,6 +614,309 @@ def parse_body(handler: BaseHTTPRequestHandler) -> dict:
     return {}
 
 
+def _db_conn() -> sqlite3.Connection:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db() -> None:
+    with _db_conn() as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS card_profiles (
+              slug TEXT PRIMARY KEY,
+              name TEXT NOT NULL,
+              headline TEXT NOT NULL,
+              tags_json TEXT NOT NULL,
+              phone TEXT NOT NULL,
+              email TEXT NOT NULL,
+              profile_subtitle TEXT NOT NULL,
+              news_label TEXT NOT NULL,
+              news_url TEXT NOT NULL,
+              instagram_label TEXT NOT NULL,
+              instagram_url TEXT NOT NULL,
+              image_data TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS card_events (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              slug TEXT NOT NULL,
+              event_type TEXT NOT NULL,
+              event_target TEXT NOT NULL,
+              page TEXT NOT NULL,
+              session_id TEXT NOT NULL,
+              ip TEXT NOT NULL,
+              user_agent TEXT NOT NULL,
+              referer TEXT NOT NULL,
+              created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.commit()
+
+
+def _normalize_slug(value: str | None) -> str:
+    raw = (value or "").strip().lower()
+    if not raw:
+        return DEFAULT_CARD_CONFIG["slug"]
+    cleaned = "".join(ch for ch in raw if ch.isalnum() or ch in ("-", "_"))
+    return cleaned or DEFAULT_CARD_CONFIG["slug"]
+
+
+def _split_tags(value: str | list[str] | None) -> list[str]:
+    if isinstance(value, list):
+        tags = [str(item).strip() for item in value if str(item).strip()]
+    else:
+        src = str(value or "")
+        tags = [item.strip() for item in src.replace("\n", ",").split(",") if item.strip()]
+    if not tags:
+        return DEFAULT_CARD_CONFIG["tags"][:]
+    return tags[:8]
+
+
+def _row_to_profile(row: sqlite3.Row) -> dict:
+    try:
+        tags = json.loads(row["tags_json"]) if row["tags_json"] else []
+    except json.JSONDecodeError:
+        tags = []
+    return {
+        "slug": row["slug"],
+        "name": row["name"],
+        "headline": row["headline"],
+        "tags": tags if isinstance(tags, list) else [],
+        "phone": row["phone"],
+        "email": row["email"],
+        "profile_subtitle": row["profile_subtitle"],
+        "news_label": row["news_label"],
+        "news_url": row["news_url"],
+        "instagram_label": row["instagram_label"],
+        "instagram_url": row["instagram_url"],
+        "image_data": row["image_data"],
+        "updated_at": row["updated_at"],
+    }
+
+
+def get_card_profile(slug: str) -> dict:
+    slug = _normalize_slug(slug)
+    with _db_conn() as conn:
+        row = conn.execute("SELECT * FROM card_profiles WHERE slug = ?", (slug,)).fetchone()
+        if row:
+            return _row_to_profile(row)
+
+        default = DEFAULT_CARD_CONFIG.copy()
+        default["slug"] = slug
+        now = now_text()
+        conn.execute(
+            """
+            INSERT INTO card_profiles (
+              slug, name, headline, tags_json, phone, email, profile_subtitle,
+              news_label, news_url, instagram_label, instagram_url, image_data, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                default["slug"],
+                default["name"],
+                default["headline"],
+                json.dumps(default["tags"], ensure_ascii=False),
+                default["phone"],
+                default["email"],
+                default["profile_subtitle"],
+                default["news_label"],
+                default["news_url"],
+                default["instagram_label"],
+                default["instagram_url"],
+                default["image_data"],
+                now,
+            ),
+        )
+        conn.commit()
+        return {**default, "updated_at": now}
+
+
+def save_card_profile(slug: str, payload: dict) -> dict:
+    current = get_card_profile(slug)
+    merged = {
+        **current,
+        "slug": _normalize_slug(payload.get("slug", current["slug"])),
+        "name": str(payload.get("name", current["name"])).strip() or current["name"],
+        "headline": str(payload.get("headline", current["headline"])).strip() or current["headline"],
+        "tags": _split_tags(payload.get("tags", current["tags"])),
+        "phone": str(payload.get("phone", current["phone"])).strip() or current["phone"],
+        "email": str(payload.get("email", current["email"])).strip() or current["email"],
+        "profile_subtitle": str(payload.get("profile_subtitle", current["profile_subtitle"])).strip()
+        or current["profile_subtitle"],
+        "news_label": str(payload.get("news_label", current["news_label"])).strip() or current["news_label"],
+        "news_url": str(payload.get("news_url", current["news_url"])).strip() or current["news_url"],
+        "instagram_label": str(payload.get("instagram_label", current["instagram_label"])).strip()
+        or current["instagram_label"],
+        "instagram_url": str(payload.get("instagram_url", current["instagram_url"])).strip()
+        or current["instagram_url"],
+        "image_data": str(payload.get("image_data", current["image_data"])).strip() or current["image_data"],
+        "updated_at": now_text(),
+    }
+
+    with _db_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO card_profiles (
+              slug, name, headline, tags_json, phone, email, profile_subtitle,
+              news_label, news_url, instagram_label, instagram_url, image_data, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(slug) DO UPDATE SET
+              name = excluded.name,
+              headline = excluded.headline,
+              tags_json = excluded.tags_json,
+              phone = excluded.phone,
+              email = excluded.email,
+              profile_subtitle = excluded.profile_subtitle,
+              news_label = excluded.news_label,
+              news_url = excluded.news_url,
+              instagram_label = excluded.instagram_label,
+              instagram_url = excluded.instagram_url,
+              image_data = excluded.image_data,
+              updated_at = excluded.updated_at
+            """,
+            (
+                merged["slug"],
+                merged["name"],
+                merged["headline"],
+                json.dumps(merged["tags"], ensure_ascii=False),
+                merged["phone"],
+                merged["email"],
+                merged["profile_subtitle"],
+                merged["news_label"],
+                merged["news_url"],
+                merged["instagram_label"],
+                merged["instagram_url"],
+                merged["image_data"],
+                merged["updated_at"],
+            ),
+        )
+        conn.commit()
+    return merged
+
+
+def save_card_event(
+    *,
+    slug: str,
+    event_type: str,
+    event_target: str,
+    page: str,
+    session_id: str,
+    ip: str,
+    user_agent: str,
+    referer: str,
+) -> None:
+    with _db_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO card_events (
+              slug, event_type, event_target, page, session_id, ip, user_agent, referer, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                _normalize_slug(slug),
+                event_type.strip()[:60],
+                event_target.strip()[:120],
+                page.strip()[:120],
+                session_id.strip()[:120],
+                ip.strip()[:120],
+                user_agent.strip()[:400],
+                referer.strip()[:400],
+                now_text(),
+            ),
+        )
+        conn.commit()
+
+
+def get_card_analytics(slug: str) -> dict:
+    slug = _normalize_slug(slug)
+    with _db_conn() as conn:
+        total = conn.execute("SELECT COUNT(*) FROM card_events WHERE slug = ?", (slug,)).fetchone()[0]
+        views_card = conn.execute(
+            "SELECT COUNT(*) FROM card_events WHERE slug = ? AND event_type = 'view_card'", (slug,)
+        ).fetchone()[0]
+        views_profile = conn.execute(
+            "SELECT COUNT(*) FROM card_events WHERE slug = ? AND event_type = 'view_profile'", (slug,)
+        ).fetchone()[0]
+        total_clicks = conn.execute(
+            "SELECT COUNT(*) FROM card_events WHERE slug = ? AND event_type LIKE 'click_%'", (slug,)
+        ).fetchone()[0]
+
+        target_rows = conn.execute(
+            """
+            SELECT event_target, COUNT(*) AS cnt
+            FROM card_events
+            WHERE slug = ? AND event_type LIKE 'click_%'
+            GROUP BY event_target
+            ORDER BY cnt DESC
+            """,
+            (slug,),
+        ).fetchall()
+        clicks_by_target = {row["event_target"] or "unknown": row["cnt"] for row in target_rows}
+
+        visitors_rows = conn.execute(
+            """
+            SELECT
+              session_id,
+              ip,
+              user_agent,
+              MIN(created_at) AS first_seen,
+              MAX(created_at) AS last_seen,
+              COUNT(*) AS events
+            FROM card_events
+            WHERE slug = ?
+            GROUP BY session_id, ip, user_agent
+            ORDER BY last_seen DESC
+            LIMIT 100
+            """,
+            (slug,),
+        ).fetchall()
+        visitors = [
+            {
+                "session_id": row["session_id"],
+                "ip": row["ip"],
+                "user_agent": row["user_agent"],
+                "first_seen": row["first_seen"],
+                "last_seen": row["last_seen"],
+                "events": row["events"],
+            }
+            for row in visitors_rows
+        ]
+
+        recent_rows = conn.execute(
+            """
+            SELECT created_at, event_type, event_target, page, session_id, ip, referer
+            FROM card_events
+            WHERE slug = ?
+            ORDER BY id DESC
+            LIMIT 100
+            """,
+            (slug,),
+        ).fetchall()
+        recent_events = [dict(row) for row in recent_rows]
+
+    click_rate = round((total_clicks / views_card) * 100, 1) if views_card else 0.0
+    return {
+        "slug": slug,
+        "summary": {
+            "total_events": total,
+            "views_card": views_card,
+            "views_profile": views_profile,
+            "total_clicks": total_clicks,
+            "click_rate_percent": click_rate,
+            "clicks_by_target": clicks_by_target,
+        },
+        "visitors": visitors,
+        "recent_events": recent_events,
+    }
+
+
 class AppHandler(BaseHTTPRequestHandler):
     def _send_json(self, payload: dict, status: int = HTTPStatus.OK) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -636,13 +957,52 @@ class AppHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
         return True
 
+    def _client_ip(self) -> str:
+        forwarded = self.headers.get("X-Forwarded-For", "").strip()
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+        real_ip = self.headers.get("X-Real-IP", "").strip()
+        if real_ip:
+            return real_ip
+        if self.client_address and self.client_address[0]:
+            return self.client_address[0]
+        return "unknown"
+
+    def _is_admin(self) -> bool:
+        token = self.headers.get("X-Admin-Token", "").strip()
+        return bool(token) and token == ADMIN_TOKEN
+
     def do_GET(self) -> None:
-        if self.path == "/health":
+        parsed = urlparse(self.path)
+        path_raw = parsed.path
+        query = parse_qs(parsed.query)
+
+        if path_raw == "/health":
             self._send_json({"status": "ok", "time": now_text()})
             return
 
+        if path_raw in ["/admin", "/admin.html"]:
+            if self._serve_static_file("admin.html"):
+                return
+
+        if path_raw in ["/dashboard", "/dashboard.html"]:
+            if self._serve_static_file("dashboard.html"):
+                return
+
+        if path_raw == "/api/card-config":
+            slug = _normalize_slug(query.get("slug", [DEFAULT_CARD_CONFIG["slug"]])[0])
+            self._send_json({"card": get_card_profile(slug)})
+            return
+
+        if path_raw == "/api/card-analytics":
+            if not self._is_admin():
+                self._send_json({"error": "관리자 권한이 필요합니다."}, status=HTTPStatus.UNAUTHORIZED)
+                return
+            slug = _normalize_slug(query.get("slug", [DEFAULT_CARD_CONFIG["slug"]])[0])
+            self._send_json(get_card_analytics(slug))
+            return
+
         # 디지털 명함: /card, /card/, /card/index.html, /card/profile.html, /card/style.css 등
-        path_raw = self.path.split("?")[0]
         if path_raw == CARD_PREFIX or path_raw == CARD_PREFIX + "/":
             if self._serve_static_file("index.html"):
                 return
@@ -654,14 +1014,14 @@ class AppHandler(BaseHTTPRequestHandler):
             elif self._serve_static_file(sub):
                 return
 
-        if self.path in ["/", "/index.html"]:
+        if path_raw in ["/", "/index.html"]:
             with LOCK:
                 posts = COMMUNITY_POSTS[:]
             page = HTML_PAGE.replace("__POSTS_JSON__", json.dumps(posts, ensure_ascii=False))
             self._send_html(page)
             return
 
-        if self.path == "/api/community":
+        if path_raw == "/api/community":
             with LOCK:
                 posts = COMMUNITY_POSTS[:]
             self._send_json({"posts": posts})
@@ -670,7 +1030,38 @@ class AppHandler(BaseHTTPRequestHandler):
         self._send_json({"error": "Not found"}, status=HTTPStatus.NOT_FOUND)
 
     def do_POST(self) -> None:
-        if self.path == "/api/inquiry":
+        path_raw = urlparse(self.path).path
+
+        if path_raw == "/api/card-config":
+            if not self._is_admin():
+                self._send_json({"error": "관리자 권한이 필요합니다."}, status=HTTPStatus.UNAUTHORIZED)
+                return
+            payload = parse_body(self)
+            slug = _normalize_slug(payload.get("slug"))
+            profile = save_card_profile(slug, payload)
+            self._send_json({"message": "저장되었습니다.", "card": profile})
+            return
+
+        if path_raw == "/api/card-event":
+            payload = parse_body(self)
+            event_type = str(payload.get("event_type", "")).strip()
+            if not event_type:
+                self._send_json({"error": "event_type 값이 필요합니다."}, status=HTTPStatus.BAD_REQUEST)
+                return
+            save_card_event(
+                slug=_normalize_slug(payload.get("slug")),
+                event_type=event_type,
+                event_target=str(payload.get("event_target", "")).strip(),
+                page=str(payload.get("page", "")).strip(),
+                session_id=str(payload.get("session_id", "")).strip(),
+                ip=self._client_ip(),
+                user_agent=self.headers.get("User-Agent", ""),
+                referer=self.headers.get("Referer", ""),
+            )
+            self._send_json({"ok": True})
+            return
+
+        if path_raw == "/api/inquiry":
             payload = parse_body(self)
             required = ["hospital", "name", "contact", "department", "preferred_date", "source"]
             if any(not str(payload.get(key, "")).strip() for key in required):
@@ -693,7 +1084,7 @@ class AppHandler(BaseHTTPRequestHandler):
             self._send_json({"message": "시연 문의가 접수되었습니다. 담당자가 빠르게 연락드리겠습니다."})
             return
 
-        if self.path == "/api/community":
+        if path_raw == "/api/community":
             payload = parse_body(self)
             required = ["title", "author", "content", "category"]
             if any(not str(payload.get(key, "")).strip() for key in required):
@@ -722,6 +1113,7 @@ class AppHandler(BaseHTTPRequestHandler):
 
 
 def run() -> None:
+    init_db()
     server = ThreadingHTTPServer((HOST, PORT), AppHandler)
     print(f"Demo page running: http://{HOST}:{PORT}")
     server.serve_forever()
