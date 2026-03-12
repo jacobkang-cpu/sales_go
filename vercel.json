@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/card", "destination": "/woojin_card.html" },
+    { "source": "/card/:path*", "destination": "/:path*" }
+  ]
+}
